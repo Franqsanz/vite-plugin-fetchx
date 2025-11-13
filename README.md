@@ -55,9 +55,9 @@ The plugin detects that it's not an absolute URL and adds the `baseURL` automati
 | Option | Type | Description |
 |--------|------|-------------|
 | `baseURL` | `string` | Automatically prefixes any relative URL used in `fetch`. |
-| `include` | `string[]` | List of routes that should be intercepted. If specified, only those routes pass through the interceptor. |
-| `exclude` | `string[]` | Routes that should not be intercepted, even if `include` accepts them. |
-| `headers` | `Record<string, string>` | Global headers attached to all intercepted fetch calls. |
-| `getToken` | `() => string \| null` | Optional function to retrieve a token (defaults to `localStorage.getItem("token")`). |
-| `refreshToken` | `() => Promise<string \| null>` | Optional function to refresh the token when the response is `401`. |
+| `include` | `string[]` | List of paths that should be intercepted. If specified, only those pass through the interceptor. |
+| `exclude` | `string[]` | Paths that should not be intercepted, even if `include` accepts them. |
+| `headers` | `Record<string, string>` | Global headers that are attached to all intercepted fetches. |
+| `getToken` | `string \| (() => string \| null \| Promise<string \| null>)` | Function to get the current token. Can be an actual function or a serialized function as a string. (default: `() => localStorage.getItem("token")`) |
+| `refreshToken` | `string \| (() => Promise<string \| null>)` | Function responsible for refreshing the token when a request returns `401`. Can return a new token or `null`. Can also be an actual function or serialized string.`. |
 | `log` | `boolean` | Enables console logs for debugging. |

@@ -57,6 +57,6 @@ El plugin detecta que no es una URL absoluta y le agrega la `baseURL`.
 | `include` | `string[]` | Lista de rutas que sí deben ser interceptadas. Si se especifica, solo esas pasan por el interceptor. |
 | `exclude` | `string[]` | Rutas que no deben ser interceptadas, incluso si `include` las acepta. |
 | `headers` | `Record<string, string>` | Headers globales que se adjuntan a todos los fetch interceptados. |
-| `getToken` | `() => string \| null` | Función opcional para recuperar un token (por defecto, `localStorage.getItem("token")`). |
-| `refreshToken` | `() => Promise<string \| null>` | Función opcional para refrescar el token cuando la respuesta es `401`. |
+| `getToken` | `string \| (() => string \| null \| Promise<string \| null>)` | Función para obtener el token actual. Puede ser una función real o una función serializada como string. (por defecto: `() => localStorage.getItem("token")`) |
+| `refreshToken` | `string \| (() => Promise<string \| null>)` | Función encargada de refrescar el token cuando una petición devuelve `401`. Puede devolver un token nuevo o `null`. También puede ser función real o string serializado.`. |
 | `log` | `boolean` | Activa logs en consola para debug. |

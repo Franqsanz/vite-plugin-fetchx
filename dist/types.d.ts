@@ -36,23 +36,23 @@ export interface FetchxOptions {
      */
     headers?: Record<string, string>;
     /**
-     * Función (serializada como string) que devuelve el token actual.
-     *
-     * Por defecto: `() => localStorage.getItem('token')`
-     *
-     * @example
-     * getToken: '() => sessionStorage.getItem("auth_token")'
-     */
-    getToken?: string;
+      * Función que devuelve el token actual.
+      * Puede ser sincrónica o asíncrona.
+      *
+      * @example
+      * getToken: () => localStorage.getItem("token")
+      */
+    getToken?: (() => string | null | Promise<string | null>) | string;
     /**
-     * Función (serializada como string) que intenta refrescar el token cuando una petición devuelve 401.
-     *
-     * Debe devolver el nuevo token o `null` si no se pudo refrescar.
+     * Intento de refrescar token ante un 401.
      *
      * @example
-     * refreshToken: 'async () => { const r = await fetch("/refresh"); return (await r.json()).token; }'
+     * refreshToken: async () => {
+     *   const r = await fetch("/refresh");
+     *   return (await r.json()).token;
+     * }
      */
-    refreshToken?: string;
+    refreshToken?: (() => Promise<string | null>) | string;
     /**
      * Si está activado, muestra en consola las peticiones interceptadas y errores.
      *

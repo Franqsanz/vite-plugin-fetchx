@@ -1,71 +1,88 @@
 /**
+ * Construye la configuración incrustando funciones como string.
+ */
+function serializeOptions(options) {
+    return `
+    ({
+      baseURL: ${JSON.stringify(options.baseURL)},
+      include: ${JSON.stringify(options.include)},
+      exclude: ${JSON.stringify(options.exclude)},
+      headers: ${JSON.stringify(options.headers)},
+      log: ${JSON.stringify(options.log)},
+    })
+  `;
+}
+/**
  * Genera el código de runtime del plugin para interceptar `fetch`.
- * @param options - Configuración del plugin (baseURL, include, exclude, headers, etc.)
  */
 export function createRuntimeCode(options) {
+    const serializedOptions = serializeOptions(options);
+    const getTokenFn = typeof options.getToken === 'function'
+        ? options.getToken.toString()
+        : options.getToken || '() => localStorage.getItem("token")';
+    const refreshTokenFn = typeof options.refreshToken === 'function'
+        ? options.refreshToken.toString()
+        : options.refreshToken || 'async () => null';
     return `
-  const originalFetch = window.fetch;
-  const opts = ${JSON.stringify(options)};
-  const getToken = ${options.getToken || '() => localStorage.getItem("token")'};
-  const refreshToken = ${options.refreshToken || 'async () => null'};
+    const originalFetch = window.fetch;
+    const opts = ${serializedOptions};
+    const getToken = ${getTokenFn};
+    const refreshToken = ${refreshTokenFn};
 
-  window.fetch = async function(url, config = {}) {
-    // --- BASE URL ---
-    if (opts.baseURL && !/^https?:\\/\\//.test(url)) {
-      url = opts.baseURL.replace(/\\/$/, '') + '/' + url.replace(/^\\//, '');
-    }
+    window.fetch = async function(url, config = {}) {
+      if (opts.baseURL && !/^https?:\\/\\//.test(url)) {
+        url = opts.baseURL.replace(/\\/$/, '') + '/' + url.replace(/^\\//, '');
+      }
 
-    // --- INCLUDE / EXCLUDE ---
-    const shouldInclude = opts.include?.length
-      ? opts.include.some(p => url.includes(p))
-      : true;
-    const shouldExclude = opts.exclude?.some(p => url.includes(p));
+      const shouldInclude = opts.include?.length
+        ? opts.include.some(p => url.includes(p))
+        : true;
 
-    if (shouldExclude || !shouldInclude) {
-      return originalFetch(url, config);
-    }
+      const shouldExclude = opts.exclude?.some(p => url.includes(p));
 
-    // --- HEADERS Y TOKEN ---
-    const token = getToken?.();
-    const mergedHeaders = {
-      ...opts.headers,
-      ...(config.headers || {}),
-      ...(token ? { Authorization: \`Bearer \${token}\` } : {}),
+      if (shouldExclude || !shouldInclude) {
+        return originalFetch(url, config);
+      }
+
+      const token = getToken?.();
+
+      if (opts.log) console.log('[fetchx] token ->', token);
+
+      const mergedHeaders = {
+        ...opts.headers,
+        ...(config.headers || {}),
+        ...(token ? { Authorization: \`Bearer \${token}\` } : {}),
+      };
+
+      try {
+        let response = await originalFetch(url, { ...config, headers: mergedHeaders });
+
+        if (response.status === 401) {
+          const newToken = await refreshToken();
+          if (newToken) {
+            const retryHeaders = {
+              ...mergedHeaders,
+              Authorization: \`Bearer \${newToken}\`,
+            };
+            response = await originalFetch(url, { ...config, headers: retryHeaders });
+          }
+        }
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => '');
+          const message = \`[fetchx] \${response.status} \${response.statusText}: \${errorText}\`;
+          if (opts.log) console.error(message);
+          throw new Error(message);
+        }
+
+        if (opts.log) console.log(\`[fetchx] \${url} -> \${response.status}\`);
+        return response;
+      } catch (err) {
+        if (opts.log) console.error('[fetchx error]', err);
+        throw err;
+      }
     };
 
-    try {
-      // --- FETCH + REFRESH ---
-      let response = await originalFetch(url, { ...config, headers: mergedHeaders });
-
-      if (response.status === 401) {
-        const newToken = await refreshToken();
-        if (newToken) {
-          const retryHeaders = {
-            ...mergedHeaders,
-            Authorization: \`Bearer \${newToken}\`,
-          };
-          response = await originalFetch(url, { ...config, headers: retryHeaders });
-        }
-      }
-
-      // --- MANEJO DE ERRORES HTTP ---
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
-        const message = \`[fetchx] \${response.status} \${response.statusText}: \${errorText}\`;
-        if (opts.log) console.error(message);
-        throw new Error(message);
-      }
-
-      if (opts.log) console.log(\`[fetchx] \${url} -> \${response.status}\`);
-      return response;
-
-    } catch (err) {
-      if (opts.log) console.error('[fetchx error]', err);
-      throw err;
-    }
-  };
-
-  // Exponer la versión interceptada
-  window.__fetchx = window.fetch;
-`;
+    window.__fetchx = window.fetch;
+  `;
 }
