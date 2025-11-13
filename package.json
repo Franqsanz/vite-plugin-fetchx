@@ -1,0 +1,23 @@
+{
+  "name": "vite-plugin-fetchx",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/types.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [
+    "vite",
+    "plugin",
+    "fetch",
+    "interceptor",
+    "typescript"
+  ],
+  "author": "Franco",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.2.2"
+  }
+}
