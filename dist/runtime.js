@@ -1,11 +1,9 @@
-import type { FetchxOptions } from './types';
-
 /**
  * Genera el código de runtime del plugin para interceptar `fetch`.
  * @param options - Configuración del plugin (baseURL, include, exclude, headers, etc.)
  */
-export function createRuntimeCode(options: FetchxOptions): string {
-  return `
+export function createRuntimeCode(options) {
+    return `
   const originalFetch = window.fetch;
   const opts = ${JSON.stringify(options)};
   const getToken = ${options.getToken || '() => localStorage.getItem("token")'};

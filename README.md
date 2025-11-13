@@ -8,8 +8,9 @@ Un plugin ligero para Vite que intercepta `fetch` globalmente y agrega soporte p
 
 ## 🚀 Instalación
 ```bash
-npm install vite-plugin-fetchx -D
+pnpm install vite-plugin-fetchx -D
 ```
+
 ```ts
 // vite.config.ts
 import fetchx from 'vite-plugin-fetchx';
@@ -17,19 +18,15 @@ import fetchx from 'vite-plugin-fetchx';
 export default {
   plugins: [
     fetchx({
-      include: ['api.miapp.com'],
-      log: true,
-      getToken: `() => localStorage.getItem('accessToken')`,
-      refreshToken: `async () => {
-        const res = await fetch('/auth/refresh');
-        const data = await res.json();
-        localStorage.setItem('accessToken', data.token);
-        return data.token;
-      }`,
+      baseURL: 'https://pokeapi.co/api/v2/',
+      include: ['/pokemon', '/ability'],
+      log: false,
     }),
   ],
 };
 ```
+
+Usar un `fecth` clásico
 ```ts
 await fetch('/api/user'); // Ya está interceptado automáticamente
 ```
