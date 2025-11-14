@@ -1,50 +1,50 @@
 /**
- * Opciones de configuración para el plugin Fetchx.
+ * Configuration options for the Fetchx plugin.
  *
- * Este plugin intercepta las llamadas `fetch()` en tiempo de ejecución,
- * permitiendo inyectar encabezados, manejar tokens y definir rutas incluidas/excluidas.
+ * This plugin intercepts `fetch()` calls at runtime,
+ * allowing you to inject headers, handle tokens, and define included/excluded routes.
  */
 export interface FetchxOptions {
     /**
-     * URL base que se antepondrá automáticamente a las rutas relativas.
+     * Base URL that will be automatically prepended to relative routes.
      *
      * @example
-     * baseURL: 'https://api.miapp.com'
-     * // fetch('/users') → fetch('https://api.miapp.com/users')
+     * baseURL: 'https://api.myapp.com'
+     * // fetch('/users') → fetch('https://api.myapp.com/users')
      */
     baseURL?: string;
     /**
-     * Lista de patrones o fragmentos de URL que deben ser interceptados por el plugin.
-     * Si no se define, todas las URLs serán incluidas por defecto.
+     * List of URL patterns or fragments that should be intercepted by the plugin.
+     * If not defined, all URLs will be included by default.
      *
      * @example
      * include: ['/api', 'https://backend.com']
      */
     include?: string[];
     /**
-     * Lista de patrones o fragmentos de URL que deben **excluirse** del interceptor.
+     * List of URL patterns or fragments that should be **excluded** from the interceptor.
      *
      * @example
      * exclude: ['/auth/login', '/static']
      */
     exclude?: string[];
     /**
-     * Encabezados personalizados que se agregarán a todas las peticiones.
+     * Custom headers that will be added to all requests.
      *
      * @example
      * headers: { 'X-App-Version': '1.2.0' }
      */
     headers?: Record<string, string>;
     /**
-      * Función que devuelve el token actual.
-      * Puede ser sincrónica o asíncrona.
-      *
-      * @example
-      * getToken: () => localStorage.getItem("token")
-      */
+     * Function that returns the current token.
+     * Can be synchronous or asynchronous.
+     *
+     * @example
+     * getToken: () => localStorage.getItem("token")
+     */
     getToken?: (() => string | null | Promise<string | null>) | string;
     /**
-     * Intento de refrescar token ante un 401.
+     * Attempt to refresh token on a 401 response.
      *
      * @example
      * refreshToken: async () => {
@@ -54,7 +54,7 @@ export interface FetchxOptions {
      */
     refreshToken?: (() => Promise<string | null>) | string;
     /**
-     * Si está activado, muestra en consola las peticiones interceptadas y errores.
+     * If enabled, shows intercepted requests and errors in the console.
      *
      * @default false
      * @example

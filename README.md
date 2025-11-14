@@ -4,26 +4,24 @@
 
 A lightweight Vite plugin that intercepts the global `fetch` and adds advanced features without modifying your existing code.
 
-## ✨ Features
+## Features
 
 - 🔐 Token authentication
 - 🔄 Automatic token refresh
 - 🧩 Integrated base URL
 - 🎯 `include` / `exclude` filters
 - 🧾 Global headers
-- 👮🏻‍♂️ Optional logging
+- 🧾 Optional logging
 - ⚡ Zero external dependencies
 
 ---
 
 ## Installation
-
 ```bash
 pnpm install vite-plugin-fetchx -D
 ```
 
 ## Basic Usage
-
 ```ts
 // vite.config.ts
 import fetchx from 'vite-plugin-fetchx';
@@ -42,7 +40,6 @@ export default {
 ## Automatic Interceptor
 
 You don't need to modify any fetch calls in your project.
-
 ```ts
 // Automatically intercepted:
 const res = await fetch('pokemon/pikachu'); 
@@ -59,5 +56,234 @@ The plugin detects that it's not an absolute URL and adds the `baseURL` automati
 | `exclude` | `string[]` | Paths that should not be intercepted, even if `include` accepts them. |
 | `headers` | `Record<string, string>` | Global headers that are attached to all intercepted fetches. |
 | `getToken` | `string \| (() => string \| null \| Promise<string \| null>)` | Function to get the current token. Can be an actual function or a serialized function as a string. (default: `() => localStorage.getItem("token")`) |
-| `refreshToken` | `string \| (() => Promise<string \| null>)` | Function responsible for refreshing the token when a request returns `401`. Can return a new token or `null`. Can also be an actual function or serialized string.`. |
+| `refreshToken` | `string \| (() => Promise<string \| null>)` | Function responsible for refreshing the token when a request returns `401`. Can return a new token or `null`. Can also be an actual function or serialized string. |
 | `log` | `boolean` | Enables console logs for debugging. |
+
+---
+
+## Token Management
+
+### `getToken`
+
+This option allows you to define how the plugin retrieves the authentication token for each request. The token will be automatically added to the `Authorization` header as `Bearer <token>`.
+
+**Default behavior:**
+```ts
+getToken: () => localStorage.getItem("token")
+```
+
+**Custom implementations:**
+```ts
+// Using a function directly
+fetchx({
+  getToken: () => {
+    return sessionStorage.getItem('authToken');
+  }
+})
+
+// Async token retrieval
+fetchx({
+  getToken: async () => {
+    const token = await someAsyncTokenService();
+    return token;
+  }
+})
+
+// Using a serialized string (useful for build-time configuration)
+fetchx({
+  getToken: `() => localStorage.getItem("myCustomToken")`
+})
+
+// Getting token from cookies
+fetchx({
+  getToken: () => {
+    const cookies = document.cookie.split(';');
+    const tokenCookie = cookies.find(c => c.trim().startsWith('token='));
+    return tokenCookie ? tokenCookie.split('=')[1] : null;
+  }
+})
+```
+
+**Important notes:**
+- If `getToken` returns `null` or `undefined`, no `Authorization` header will be added
+- The function is called on every intercepted request
+- Supports both synchronous and asynchronous implementations
+
+---
+
+### `refreshToken`
+
+This option defines the logic to refresh an expired token when the API returns a `401 Unauthorized` response. The plugin will automatically:
+
+1. Detect a `401` response
+2. Call `refreshToken()` to get a new token
+3. Retry the original request with the new token
+
+**Example implementations:**
+```ts
+// Basic refresh endpoint
+fetchx({
+  refreshToken: async () => {
+    const response = await fetch('https://api.example.com/auth/refresh', {
+      method: 'POST',
+      credentials: 'include'
+    });
+    
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    localStorage.setItem('token', data.token);
+    return data.token;
+  }
+})
+
+// Using refresh token from localStorage
+fetchx({
+  refreshToken: async () => {
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (!refreshToken) return null;
+
+    const response = await fetch('https://api.example.com/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken })
+    });
+
+    if (!response.ok) {
+      // Clear invalid tokens
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+      return null;
+    }
+
+    const { token, refreshToken: newRefreshToken } = await response.json();
+    localStorage.setItem('token', token);
+    localStorage.setItem('refreshToken', newRefreshToken);
+    return token;
+  }
+})
+
+// Using a serialized string
+fetchx({
+  refreshToken: `async () => {
+    const res = await fetch('/api/refresh');
+    if (!res.ok) return null;
+    const data = await res.json();
+    localStorage.setItem('token', data.token);
+    return data.token;
+  }`
+})
+
+// With error handling and redirect
+fetchx({
+  refreshToken: async () => {
+    try {
+      const response = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        // Redirect to login if refresh fails
+        window.location.href = '/login';
+        return null;
+      }
+
+      const { accessToken } = await response.json();
+      localStorage.setItem('token', accessToken);
+      return accessToken;
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      return null;
+    }
+  }
+})
+```
+
+**Important notes:**
+- Must return a `Promise<string | null>`
+- Returning `null` means refresh failed (user will likely need to log in again)
+- The plugin will only attempt to refresh once per request to avoid infinite loops
+- After successful refresh, the original request is automatically retried with the new token
+- Be careful not to call refresh on the refresh endpoint itself (use `exclude` if needed)
+
+**Example with exclude:**
+```ts
+fetchx({
+  baseURL: 'https://api.example.com',
+  exclude: ['/auth/refresh', '/auth/login'], // Don't intercept auth endpoints
+  refreshToken: async () => {
+    const res = await fetch('https://api.example.com/auth/refresh');
+    // ...
+  }
+})
+```
+
+---
+
+## Complete Example
+```ts
+// vite.config.ts
+import fetchx from 'vite-plugin-fetchx';
+
+export default {
+  plugins: [
+    fetchx({
+      baseURL: 'https://api.myapp.com',
+      include: ['/api'],
+      exclude: ['/api/auth/login', '/api/public'],
+      headers: {
+        'X-App-Version': '1.0.0'
+      },
+      getToken: () => localStorage.getItem('accessToken'),
+      refreshToken: async () => {
+        const refreshToken = localStorage.getItem('refreshToken');
+        if (!refreshToken) return null;
+
+        const response = await fetch('https://api.myapp.com/api/auth/refresh', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken })
+        });
+
+        if (!response.ok) {
+          localStorage.clear();
+          window.location.href = '/login';
+          return null;
+        }
+
+        const { accessToken, refreshToken: newRefresh } = await response.json();
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('refreshToken', newRefresh);
+        return accessToken;
+      },
+      log: true
+    })
+  ]
+};
+```
+
+## Usage in Your App
+
+Once configured, all your fetch calls will be automatically intercepted:
+```ts
+// No changes needed in your code!
+const response = await fetch('/api/users');
+const users = await response.json();
+
+// Works with all fetch options
+const response = await fetch('/api/users', {
+  method: 'POST',
+  body: JSON.stringify({ name: 'John' })
+});
+
+// The plugin automatically:
+// ✓ Adds baseURL
+// ✓ Adds Authorization header with token
+// ✓ Refreshes token on 401
+// ✓ Retries request with new token
+```
+
+## License
+
+MIT
