@@ -1,6 +1,6 @@
 # vite-plugin-fetchx
 
-[Leer en Español](./README.es.md)
+[Leer en Español](./README_ES.md)
 
 A lightweight Vite plugin that intercepts the global `fetch` and adds advanced features without modifying your existing code.
 
