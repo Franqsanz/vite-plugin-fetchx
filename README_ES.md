@@ -16,10 +16,10 @@ Un plugin ligero de Vite que intercepta el `fetch` global y añade característi
 
 ---
 
-## Instalación
+<!--## Instalación
 ```bash
 pnpm install vite-plugin-fetchx -D
-```
+```-->
 
 ## Uso Básico
 ```ts
@@ -56,7 +56,8 @@ El plugin detecta que no es una URL absoluta y añade el `baseURL` automáticame
 | `exclude` | `string[]` | Rutas que no deben ser interceptadas, incluso si `include` las acepta. |
 | `headers` | `Record<string, string>` | Encabezados globales que se adjuntan a todos los fetch interceptados. |
 | `getToken` | `string \| (() => string \| null \| Promise<string \| null>)` | Función para obtener el token actual. Puede ser una función real o una función serializada como string. (por defecto: `() => localStorage.getItem("token")`) |
-| `refreshToken` | `string \| (() => Promise<string \| null>)` | Función responsable de refrescar el token cuando una petición retorna `401`. Puede retornar un nuevo token o `null`. También puede ser una función real o string serializado. |
+| `refreshToken` | `string \| (() => Promise<string \| null>)` | URL del endpoint de refresh o función personalizada para refrescar el token cuando una petición retorna `401`. |
+| `tokenKey` | `string` | Nombre de la clave en localStorage donde se guarda el token. Solo se usa cuando `refreshToken` es una URL string. (por defecto: `"token"`) |
 | `log` | `boolean` | Habilita logs en consola para depuración. |
 
 ---
@@ -113,30 +114,51 @@ fetchx({
 
 ### `refreshToken`
 
-Esta opción define la lógica para refrescar un token expirado cuando la API retorna una respuesta `401 Unauthorized`. El plugin automáticamente:
+Esta opción define la lógica para refrescar un token expirado cuando la API retorna una respuesta `401 Unauthorized`. 
 
-1. Detecta una respuesta `401`
-2. Llama a `refreshToken()` para obtener un nuevo token
-3. Reintenta la petición original con el nuevo token
+**Uso simple (URL string):**
 
-**Ejemplos de implementación:**
+La forma más sencilla es pasar directamente la URL del endpoint de refresh:
+
 ```ts
-// Endpoint básico de refresh
 fetchx({
-  refreshToken: async () => {
-    const response = await fetch('https://api.example.com/auth/refresh', {
-      method: 'POST',
-      credentials: 'include'
-    });
-    
-    if (!response.ok) return null;
-    
-    const data = await response.json();
-    localStorage.setItem('token', data.token);
-    return data.token;
-  }
+  refreshToken: '/api/auth/refresh'
+})
+```
+
+Cuando usas un string, el plugin automáticamente:
+1. Detecta una respuesta `401`
+2. Hace un `POST` al endpoint especificado
+3. Espera una respuesta JSON con formato: `{ token: "..." }`, `{ accessToken: "..." }` o `{ access_token: "..." }`
+4. Guarda el nuevo token en `localStorage` usando la clave especificada en `tokenKey` (por defecto: `"token"`)
+5. Reintenta la petición original con el nuevo token
+
+**Ejemplos:**
+```ts
+// Simple - usa los valores por defecto
+fetchx({
+  refreshToken: '/api/auth/refresh'
 })
 
+// Con tokenKey personalizado
+fetchx({
+  tokenKey: 'authToken',
+  refreshToken: '/api/auth/refresh'
+})
+
+// URL absoluta
+fetchx({
+  refreshToken: 'https://api.example.com/auth/refresh'
+})
+```
+
+---
+
+**Uso avanzado (función):**
+
+Si necesitas lógica más compleja (enviar refresh token, limpiar storage, redirigir, etc.), puedes pasar una función:
+
+```ts
 // Usando refresh token desde localStorage
 fetchx({
   refreshToken: async () => {
@@ -163,17 +185,6 @@ fetchx({
   }
 })
 
-// Usando un string serializado
-fetchx({
-  refreshToken: `async () => {
-    const res = await fetch('/api/refresh');
-    if (!res.ok) return null;
-    const data = await res.json();
-    localStorage.setItem('token', data.token);
-    return data.token;
-  }`
-})
-
 // Con manejo de errores y redirección
 fetchx({
   refreshToken: async () => {
@@ -198,13 +209,22 @@ fetchx({
     }
   }
 })
+
+// Usando un string serializado
+fetchx({
+  refreshToken: `async () => {
+    const res = await fetch('/api/refresh');
+    if (!res.ok) return null;
+    const data = await res.json();
+    localStorage.setItem('token', data.token);
+    return data.token;
+  }`
+})
 ```
 
 **Notas importantes:**
-- Debe retornar un `Promise<string | null>`
 - Retornar `null` significa que el refresh falló (el usuario probablemente necesitará iniciar sesión nuevamente)
 - El plugin solo intentará refrescar una vez por petición para evitar bucles infinitos
-- Después de un refresh exitoso, la petición original se reintenta automáticamente con el nuevo token
 - Ten cuidado de no llamar al refresh en el mismo endpoint de refresh (usa `exclude` si es necesario)
 
 **Ejemplo con exclude:**
@@ -212,10 +232,7 @@ fetchx({
 fetchx({
   baseURL: 'https://api.example.com',
   exclude: ['/auth/refresh', '/auth/login'], // No interceptar endpoints de autenticación
-  refreshToken: async () => {
-    const res = await fetch('https://api.example.com/auth/refresh');
-    // ...
-  }
+  refreshToken: '/api/auth/refresh'
 })
 ```
 
@@ -236,27 +253,8 @@ export default {
         'X-App-Version': '1.0.0'
       },
       getToken: () => localStorage.getItem('accessToken'),
-      refreshToken: async () => {
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (!refreshToken) return null;
-
-        const response = await fetch('https://api.miapp.com/api/auth/refresh', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken })
-        });
-
-        if (!response.ok) {
-          localStorage.clear();
-          window.location.href = '/login';
-          return null;
-        }
-
-        const { accessToken, refreshToken: newRefresh } = await response.json();
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', newRefresh);
-        return accessToken;
-      },
+      refreshToken: '/api/auth/refresh', // Simple!
+      tokenKey: 'accessToken',
       log: true
     })
   ]

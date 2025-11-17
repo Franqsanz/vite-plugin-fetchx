@@ -1,70 +1,70 @@
 /**
  * Configuration options for the Fetchx plugin.
- *
- * This plugin intercepts `fetch()` calls at runtime,
- * allowing you to inject headers, handle tokens, and define included/excluded routes.
  */
 export interface FetchxOptions {
   /**
-   * Base URL that will be automatically prepended to relative routes.
-   *
-   * @example
-   * baseURL: 'https://api.myapp.com'
-   * // fetch('/users') → fetch('https://api.myapp.com/users')
+   * Base URL prepended to relative routes.
+   * @example 'https://api.myapp.com'
    */
   baseURL?: string;
 
   /**
-   * List of URL patterns or fragments that should be intercepted by the plugin.
-   * If not defined, all URLs will be included by default.
-   *
-   * @example
-   * include: ['/api', 'https://backend.com']
+   * URL patterns to intercept. If undefined, all URLs are included.
+   * @example ['/api', 'https://backend.com']
    */
   include?: string[];
 
   /**
-   * List of URL patterns or fragments that should be **excluded** from the interceptor.
-   *
-   * @example
-   * exclude: ['/auth/login', '/static']
+   * URL patterns to exclude from interception.
+   * @example ['/auth/login', '/static']
    */
   exclude?: string[];
 
   /**
-   * Custom headers that will be added to all requests.
-   *
-   * @example
-   * headers: { 'X-App-Version': '1.2.0' }
+   * Custom headers added to all requests.
+   * @example { 'X-App-Version': '1.2.0' }
    */
   headers?: Record<string, string>;
 
   /**
-   * Function that returns the current token.
-   * Can be synchronous or asynchronous.
-   *
-   * @example
-   * getToken: () => localStorage.getItem("token")
+   * Function or string that returns the current token.
+   * @default () => localStorage.getItem("token")
+   * @example () => sessionStorage.getItem("authToken")
    */
   getToken?: (() => string | null | Promise<string | null>) | string;
 
   /**
-   * Attempt to refresh token on a 401 response.
+   * Refresh token on 401 response.
+   *
+   * **Simple usage (URL string):**
+   * The plugin will POST to this URL and expect `{ token: string }` in response.
+   * The new token will be automatically saved to localStorage with the same key as getToken.
+   *
+   * @example '/api/auth/refresh'
+   *
+   * **Advanced usage (function):**
+   * Custom logic for token refresh.
    *
    * @example
-   * refreshToken: async () => {
+   * async () => {
    *   const r = await fetch("/refresh");
-   *   return (await r.json()).token;
+   *   const data = await r.json();
+   *   localStorage.setItem('token', data.token);
+   *   return data.token;
    * }
    */
-  refreshToken?: (() => Promise<string | null>) | string;
+  refreshToken?: string | (() => Promise<string | null>);
 
   /**
-   * If enabled, shows intercepted requests and errors in the console.
-   *
+   * Token key name in localStorage.
+   * Only used when refreshToken is a URL string.
+   * @default "token"
+   */
+  tokenKey?: string;
+
+  /**
+   * Shows intercepted requests and errors in console.
    * @default false
-   * @example
-   * log: true
    */
   log?: boolean;
 }

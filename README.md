@@ -1,6 +1,6 @@
 # vite-plugin-fetchx
 
-[Leer en Español](./README_ES.md)
+[Leer en Español](./README.es.md)
 
 A lightweight Vite plugin that intercepts the global `fetch` and adds advanced features without modifying your existing code.
 
@@ -8,7 +8,7 @@ A lightweight Vite plugin that intercepts the global `fetch` and adds advanced f
 
 - 🔐 Token authentication
 - 🔄 Automatic token refresh
-- 🧩 Integrated base URL
+- 🧩 Built-in base URL
 - 🎯 `include` / `exclude` filters
 - 🧾 Global headers
 - 🧾 Optional logging
@@ -16,10 +16,10 @@ A lightweight Vite plugin that intercepts the global `fetch` and adds advanced f
 
 ---
 
-## Installation
+<!--## Installation
 ```bash
 pnpm install vite-plugin-fetchx -D
-```
+```-->
 
 ## Basic Usage
 ```ts
@@ -45,18 +45,19 @@ You don't need to modify any fetch calls in your project.
 const res = await fetch('pokemon/pikachu'); 
 ```
 
-The plugin detects that it's not an absolute URL and adds the `baseURL` automatically.
+The plugin detects that it's not an absolute URL and automatically adds the `baseURL`.
 
 ## Available Options
 
 | Option | Type | Description |
 |--------|------|-------------|
 | `baseURL` | `string` | Automatically prefixes any relative URL used in `fetch`. |
-| `include` | `string[]` | List of paths that should be intercepted. If specified, only those pass through the interceptor. |
-| `exclude` | `string[]` | Paths that should not be intercepted, even if `include` accepts them. |
-| `headers` | `Record<string, string>` | Global headers that are attached to all intercepted fetches. |
-| `getToken` | `string \| (() => string \| null \| Promise<string \| null>)` | Function to get the current token. Can be an actual function or a serialized function as a string. (default: `() => localStorage.getItem("token")`) |
-| `refreshToken` | `string \| (() => Promise<string \| null>)` | Function responsible for refreshing the token when a request returns `401`. Can return a new token or `null`. Can also be an actual function or serialized string. |
+| `include` | `string[]` | List of routes that should be intercepted. If specified, only these pass through the interceptor. |
+| `exclude` | `string[]` | Routes that should not be intercepted, even if `include` accepts them. |
+| `headers` | `Record<string, string>` | Global headers attached to all intercepted fetch requests. |
+| `getToken` | `string \| (() => string \| null \| Promise<string \| null>)` | Function to get the current token. Can be a real function or a serialized function as a string. (default: `() => localStorage.getItem("token")`) |
+| `refreshToken` | `string \| (() => Promise<string \| null>)` | Refresh endpoint URL or custom function to refresh the token when a request returns `401`. |
+| `tokenKey` | `string` | Name of the key in localStorage where the token is stored. Only used when `refreshToken` is a URL string. (default: `"token"`) |
 | `log` | `boolean` | Enables console logs for debugging. |
 
 ---
@@ -65,7 +66,7 @@ The plugin detects that it's not an absolute URL and adds the `baseURL` automati
 
 ### `getToken`
 
-This option allows you to define how the plugin retrieves the authentication token for each request. The token will be automatically added to the `Authorization` header as `Bearer <token>`.
+This option lets you define how the plugin obtains the authentication token for each request. The token will be automatically added to the `Authorization` header as `Bearer <token>`.
 
 **Default behavior:**
 ```ts
@@ -105,38 +106,59 @@ fetchx({
 ```
 
 **Important notes:**
-- If `getToken` returns `null` or `undefined`, no `Authorization` header will be added
-- The function is called on every intercepted request
+- If `getToken` returns `null` or `undefined`, the `Authorization` header will not be added
+- The function is called on each intercepted request
 - Supports both synchronous and asynchronous implementations
 
 ---
 
 ### `refreshToken`
 
-This option defines the logic to refresh an expired token when the API returns a `401 Unauthorized` response. The plugin will automatically:
+This option defines the logic to refresh an expired token when the API returns a `401 Unauthorized` response.
 
-1. Detect a `401` response
-2. Call `refreshToken()` to get a new token
-3. Retry the original request with the new token
+**Simple usage (URL string):**
 
-**Example implementations:**
+The easiest way is to pass the refresh endpoint URL directly:
+
 ```ts
-// Basic refresh endpoint
 fetchx({
-  refreshToken: async () => {
-    const response = await fetch('https://api.example.com/auth/refresh', {
-      method: 'POST',
-      credentials: 'include'
-    });
-    
-    if (!response.ok) return null;
-    
-    const data = await response.json();
-    localStorage.setItem('token', data.token);
-    return data.token;
-  }
+  refreshToken: '/api/auth/refresh'
+})
+```
+
+When you use a string, the plugin automatically:
+1. Detects a `401` response
+2. Makes a `POST` to the specified endpoint
+3. Expects a JSON response with format: `{ token: "..." }`, `{ accessToken: "..." }` or `{ access_token: "..." }`
+4. Saves the new token in `localStorage` using the key specified in `tokenKey` (default: `"token"`)
+5. Retries the original request with the new token
+
+**Examples:**
+```ts
+// Simple - uses default values
+fetchx({
+  refreshToken: '/api/auth/refresh'
 })
 
+// With custom tokenKey
+fetchx({
+  tokenKey: 'authToken',
+  refreshToken: '/api/auth/refresh'
+})
+
+// Absolute URL
+fetchx({
+  refreshToken: 'https://api.example.com/auth/refresh'
+})
+```
+
+---
+
+**Advanced usage (function):**
+
+If you need more complex logic (send refresh token, clear storage, redirect, etc.), you can pass a function:
+
+```ts
 // Using refresh token from localStorage
 fetchx({
   refreshToken: async () => {
@@ -163,18 +185,7 @@ fetchx({
   }
 })
 
-// Using a serialized string
-fetchx({
-  refreshToken: `async () => {
-    const res = await fetch('/api/refresh');
-    if (!res.ok) return null;
-    const data = await res.json();
-    localStorage.setItem('token', data.token);
-    return data.token;
-  }`
-})
-
-// With error handling and redirect
+// With error handling and redirection
 fetchx({
   refreshToken: async () => {
     try {
@@ -198,24 +209,30 @@ fetchx({
     }
   }
 })
+
+// Using a serialized string
+fetchx({
+  refreshToken: `async () => {
+    const res = await fetch('/api/refresh');
+    if (!res.ok) return null;
+    const data = await res.json();
+    localStorage.setItem('token', data.token);
+    return data.token;
+  }`
+})
 ```
 
 **Important notes:**
-- Must return a `Promise<string | null>`
-- Returning `null` means refresh failed (user will likely need to log in again)
+- Returning `null` means the refresh failed (the user will likely need to log in again)
 - The plugin will only attempt to refresh once per request to avoid infinite loops
-- After successful refresh, the original request is automatically retried with the new token
-- Be careful not to call refresh on the refresh endpoint itself (use `exclude` if needed)
+- Be careful not to call refresh on the same refresh endpoint (use `exclude` if necessary)
 
 **Example with exclude:**
 ```ts
 fetchx({
   baseURL: 'https://api.example.com',
   exclude: ['/auth/refresh', '/auth/login'], // Don't intercept auth endpoints
-  refreshToken: async () => {
-    const res = await fetch('https://api.example.com/auth/refresh');
-    // ...
-  }
+  refreshToken: '/api/auth/refresh'
 })
 ```
 
@@ -236,34 +253,15 @@ export default {
         'X-App-Version': '1.0.0'
       },
       getToken: () => localStorage.getItem('accessToken'),
-      refreshToken: async () => {
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (!refreshToken) return null;
-
-        const response = await fetch('https://api.myapp.com/api/auth/refresh', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken })
-        });
-
-        if (!response.ok) {
-          localStorage.clear();
-          window.location.href = '/login';
-          return null;
-        }
-
-        const { accessToken, refreshToken: newRefresh } = await response.json();
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', newRefresh);
-        return accessToken;
-      },
+      refreshToken: '/api/auth/refresh', // Simple!
+      tokenKey: 'accessToken',
       log: true
     })
   ]
 };
 ```
 
-## Usage in Your App
+## Usage in Your Application
 
 Once configured, all your fetch calls will be automatically intercepted:
 ```ts
